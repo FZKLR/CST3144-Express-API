@@ -48,6 +48,33 @@ const validateRequest = (schema) => {
     };
 };
 
+app.get('/search', (req, res, next) => {
+    const q = String(req.query.q || '').trim();
+
+    if (!q) {
+        return req.collection.find({}).toArray()
+        .then((results) => res.json(results))
+        .catch(next);
+    }
+
+    // Escape regex special characters so inputs like "+" or "(" don't break RegExp
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+
+    const query = {
+        $or: [
+        { topic: regex },
+        { subject: regex },
+        { location: regex },
+        { $expr: { $regexMatch: { input: { $toString: '$price' }, regex: escaped, options: 'i' } } },
+        { $expr: { $regexMatch: { input: { $toString: '$space' }, regex: escaped, options: 'i' } } }
+        ]
+    };
+
+    req.collection.find(query).toArray()
+        .then((results) => res.json(results))
+        .catch(next);
+});
 // REST API Routes
 app.get('/lessons', lessonController.getLessons);
 app.post('/orders', validateRequest(schemas.order_create), orderController.createOrder);
