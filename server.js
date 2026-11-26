@@ -51,32 +51,42 @@ const validateRequest = (schema) => {
 app.get('/search', (req, res, next) => {
     const q = String(req.query.q || '').trim().toLowerCase();
 
-    // Adjust `db.collection('lesson')` if your code already assigns the collection to a variable/req property
-    const collection = req.collection || db.collection('lesson');
+    Promise.resolve(connectDB())
+        .then((dbInstance) => {
+            // If connectDB() returns the db or { db }, handle both safely
+            const database = dbInstance && dbInstance.db ? dbInstance.db : dbInstance;
+            const collection = database && typeof database.collection === 'function'
+                ? database.collection('lesson')
+                : null;
 
-    collection.find({}).toArray()
+            if (!collection) {
+                throw new Error('Database collection not accessible in /search');
+            }
+
+            return collection.find({}).toArray();
+        })
         .then((lessonsList) => {
-        if (!q) {
-            return res.json(lessonsList);
-        }
+            if (!q) {
+                return res.json(lessonsList);
+            }
 
-        const filtered = lessonsList.filter((item) => {
-            const title = String(item.topic || '').toLowerCase();
-            const subject = String(item.subject || '').toLowerCase();
-            const location = String(item.location || '').toLowerCase();
-            const price = String(item.price ?? '').toLowerCase();
-            const space = String(item.space ?? '').toLowerCase();
+            const filtered = lessonsList.filter((item) => {
+                const title = String(item.topic || '').toLowerCase();
+                const subject = String(item.subject || '').toLowerCase();
+                const location = String(item.location || '').toLowerCase();
+                const price = String(item.price ?? '').toLowerCase();
+                const space = String(item.space ?? '').toLowerCase();
 
-            return (
-            title.includes(q) ||
-            subject.includes(q) ||
-            location.includes(q) ||
-            price.includes(q) ||
-            space.includes(q)
-            );
-        });
+                return (
+                    title.includes(q) ||
+                    subject.includes(q) ||
+                    location.includes(q) ||
+                    price.includes(q) ||
+                    space.includes(q)
+                );
+            });
 
-        res.json(filtered);
+            res.json(filtered);
         })
         .catch(next);
 });
