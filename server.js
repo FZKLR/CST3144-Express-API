@@ -49,32 +49,38 @@ const validateRequest = (schema) => {
 };
 
 app.get('/search', (req, res, next) => {
-    const q = String(req.query.q || '').trim();
+    const q = String(req.query.q || '').trim().toLowerCase();
 
-    if (!q) {
-        return req.collection.find({}).toArray()
-        .then((results) => res.json(results))
-        .catch(next);
-    }
+    // Adjust `db.collection('lesson')` if your code already assigns the collection to a variable/req property
+    const collection = req.collection || db.collection('lesson');
 
-    // Escape regex special characters so inputs like "+" or "(" don't break RegExp
-    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escaped, 'i');
+    collection.find({}).toArray()
+        .then((lessonsList) => {
+        if (!q) {
+            return res.json(lessonsList);
+        }
 
-    const query = {
-        $or: [
-        { topic: regex },
-        { subject: regex },
-        { location: regex },
-        { $expr: { $regexMatch: { input: { $toString: '$price' }, regex: escaped, options: 'i' } } },
-        { $expr: { $regexMatch: { input: { $toString: '$space' }, regex: escaped, options: 'i' } } }
-        ]
-    };
+        const filtered = lessonsList.filter((item) => {
+            const title = String(item.topic || '').toLowerCase();
+            const subject = String(item.subject || '').toLowerCase();
+            const location = String(item.location || '').toLowerCase();
+            const price = String(item.price ?? '').toLowerCase();
+            const space = String(item.space ?? '').toLowerCase();
 
-    req.collection.find(query).toArray()
-        .then((results) => res.json(results))
+            return (
+            title.includes(q) ||
+            subject.includes(q) ||
+            location.includes(q) ||
+            price.includes(q) ||
+            space.includes(q)
+            );
+        });
+
+        res.json(filtered);
+        })
         .catch(next);
 });
+
 // REST API Routes
 app.get('/lessons', lessonController.getLessons);
 app.post('/orders', validateRequest(schemas.order_create), orderController.createOrder);
